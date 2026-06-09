@@ -361,18 +361,70 @@ export class Editor {
 
         drop(snapshot, operations);
 
-        if (selection) {
-            const { anchorPath, anchor, focus, isSelectionInSameBlock } = selection;
-            const cursorBlock = this.scrollPage?.queryBlock(anchorPath);
+        this._restoreSelection(selection);
+    }
 
-            const begin = Math.min(anchor.offset, focus.offset);
-            const end = Math.max(anchor.offset, focus.offset);
+    private _restoreSelection(selection: Nullable<IHistorySelection>, treeRebuilt = false) {
+        if (!selection)
+            return;
 
-            if (isSelectionInSameBlock && cursorBlock && cursorBlock.isContent())
+        const { anchorPath, anchor, focus, isSelectionInSameBlock } = selection;
+        // `ScrollPage.queryBlock` consumes the path array in place (`path.shift`),
+        // so query against a copy and leave the caller's selection untouched.
+        const cursorBlock = this.scrollPage?.queryBlock([...anchorPath]);
+
+        const begin = Math.min(anchor.offset, focus.offset);
+        const end = Math.max(anchor.offset, focus.offset);
+
+        if (isSelectionInSameBlock && cursorBlock && cursorBlock.isContent()) {
+            cursorBlock.setCursor(begin, end, true);
+            return;
+        }
+
+        // When the tree was rebuilt wholesale (rebuildContents), the saved
+        // selection's cached `anchorBlock` / `focusBlock` reference DETACHED
+        // nodes from the previous tree — resolving them would set the native DOM
+        // range onto a detached node and crash the next `getSelection()` read.
+        // Re-resolve the caret from the (cloned) path against the fresh tree;
+        // fall back to focusing the first content block when the saved path no
+        // longer points at a content leaf (e.g. a paragraph became a table).
+        if (treeRebuilt) {
+            if (cursorBlock && cursorBlock.isContent())
                 cursorBlock.setCursor(begin, end, true);
             else
-                this.selection.setSelection(selection);
+                this.focus();
+
+            return;
         }
+
+        // Incremental (updateContents) path: blocks are still attached. Clone the
+        // paths so `_setCursor`'s `queryBlock(path)` fallback can't drain the
+        // caller's arrays — notably the selection object stored in the undo stack.
+        this.selection.setSelection({
+            ...selection,
+            anchorPath: [...selection.anchorPath],
+            focusPath: [...selection.focusPath],
+        });
+    }
+
+    /**
+     * Apply a history op by rebuilding the live block tree wholesale instead of
+     * walking it incrementally (`updateContents`). The op is dispatched to the
+     * authoritative json state, then `ScrollPage.updateState` re-creates the DOM
+     * from that state — the same safe path `setContent` uses. Used for undo/redo
+     * of whole-document boundaries (e.g. exiting source-code mode) whose op
+     * shapes the incremental pick/drop walker cannot apply without desyncing the
+     * DOM from the json state.
+     */
+    rebuildContents(operations: JSONOp, selection: Nullable<IHistorySelection>, source: string) {
+        this.jsonState.dispatch(operations, source);
+
+        const state = this.jsonState.getState();
+        this.scrollPage!.updateState(state);
+
+        // The tree was rebuilt wholesale, so the selection's cached block
+        // references are stale — resolve the caret from paths instead.
+        this._restoreSelection(selection, true);
     }
 
     setContent(content: TState[] | string, autoFocus = false) {
