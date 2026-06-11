@@ -270,20 +270,14 @@ code.mu-code .mu-code-copy:hover {
 }
 
 /* code block line numbers (option: codeBlockLineNumbers) */
-.mu-code-block.mu-line-numbers {
+.mu-code-block:has(.mu-line-numbers-rows) {
     padding-left: 2.5em;
-
-    counter-reset: mu-linenumber;
-}
-
-.mu-code-block.mu-line-numbers .mu-code {
-    position: relative;
 }
 
 .mu-line-numbers-rows {
     position: absolute;
-    top: 0;
-    left: -2.5em;
+    top: 1em;
+    left: 0;
     z-index: 0;
 
     width: 2.5em;
@@ -291,13 +285,17 @@ code.mu-code .mu-code-copy:hover {
     font-size: 100%;
     letter-spacing: -1px;
 
+    counter-reset: mu-linenumber;
+
     user-select: none;
 
     pointer-events: none;
 }
 
 .mu-line-numbers-rows > span {
-    display: block;
+    position: absolute;
+    left: 0;
+    width: 100%;
 
     counter-increment: mu-linenumber;
     pointer-events: none;
