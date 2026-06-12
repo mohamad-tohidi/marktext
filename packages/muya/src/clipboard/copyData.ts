@@ -86,7 +86,7 @@ function sliceListState(
 function getTableSelectionClipboardData(
     clipboard: Clipboard,
 ): Nullable<IClipboardPayload> {
-    const state = clipboard.tableSelection?.getStateForCopy();
+    const state = clipboard.selection.table.getStateForCopy();
     if (state == null)
         return null;
 
@@ -297,7 +297,7 @@ export function writeClipboardData(
 
     // A selected inline image copies its raw `![alt](src)` markdown
     // verbatim, short-circuiting the text-selection clipboard data.
-    const selectedImage = clipboard.muya.editor?.selection?.selectedImage;
+    const selectedImage = clipboard.muya.editor?.selection?.image;
     if (selectedImage) {
         const { raw } = selectedImage.token;
         if (raw.length > 0) {
