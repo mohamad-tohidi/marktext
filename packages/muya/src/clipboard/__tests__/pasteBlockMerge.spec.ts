@@ -140,4 +140,26 @@ describe('paste — multi-line paragraph into a heading keeps only the first lin
         const block = contentBlocks(muya)[0];
         expect(await paste(muya, block, 8, 8, 'A')).toBe('# hello Aworld\n');
     });
+
+    it('a multi-line paragraph pasted into a SETEXT heading stays one block (only atx splits)', async () => {
+        const muya = bootMuya('Title\n===\n');
+        const block = contentBlocks(muya)[0]; // setext-heading content 'Title'
+        const md = await paste(muya, block, block.text.length, block.text.length, 'aaa\nbbb');
+        // muyajs keeps the whole paragraph inside the setext heading — one block.
+        expect(muya.editor.scrollPage!.length()).toBe(1);
+        expect(md).toContain('Titleaaa');
+        expect(md).toContain('bbb');
+    });
+});
+
+describe('paste — NEWLINE into an emptied non-paragraph wrapper (muyajs removeBlock parity)', () => {
+    it('removes the emptied heading wrapper instead of leaving a stray empty block', async () => {
+        const muya = bootMuya('# heading\n');
+        const block = contentBlocks(muya)[0];
+        // cursor before the heading text (offset 0); paste a non-mergeable block.
+        await paste(muya, block, 0, 0, '---');
+        // muyajs's NEWLINE branch removes the now-empty wrapper unconditionally;
+        // the heading must not linger as a stray empty block.
+        expect(muya.editor.scrollPage!.length()).toBe(1);
+    });
 });

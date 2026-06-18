@@ -82,13 +82,22 @@ function insertStatesAfter(
     return wb;
 }
 
-function removeEmptyOriginParagraph(originWrapperBlock: Nullable<Parent>): void {
-    if (originWrapperBlock?.blockName !== 'paragraph')
+// Drop the anchor's wrapper when the paste emptied it. muyajs removes any
+// emptied wrapper (removeBlock), so a heading whose text was consumed is
+// cleaned up too — not just a paragraph.
+function removeEmptyOriginWrapper(originWrapperBlock: Nullable<Parent>): void {
+    const blockName = originWrapperBlock?.blockName;
+    if (
+        blockName !== 'paragraph'
+        && blockName !== 'atx-heading'
+        && blockName !== 'setext-heading'
+    ) {
         return;
+    }
 
-    const originState = originWrapperBlock.getState();
-    if (isParagraphState(originState) && originState.text === '')
-        originWrapperBlock.remove();
+    const originState = originWrapperBlock!.getState() as { text?: string };
+    if (originState.text === '')
+        originWrapperBlock!.remove();
 }
 
 function seatCursorAtSeam(last: Nullable<Parent>, offset: number): void {
@@ -183,7 +192,7 @@ function pasteNewline(
     const offset = sewTail(states, tail);
     const last = insertStatesAfter(muya, ctx.wrapperBlock, states);
     if (head.length === 0)
-        removeEmptyOriginParagraph(ctx.originWrapperBlock);
+        removeEmptyOriginWrapper(ctx.originWrapperBlock);
 
     seatCursorAtSeam(last, offset);
 }
@@ -249,9 +258,14 @@ function tryMergeListPaste(
     const pastedItems = firstState.children;
     const pastedFirst = pastedItems[0].children[0];
 
+    // A task list never folds its first item: muyajs prepends an `input` child
+    // so its `liChildren[0].type === 'p'` check is false and it appends every
+    // pasted item. Bullet/order lists fold the first item's paragraph inline.
+    const canFold = firstState.name !== 'task-list' && isParagraphState(pastedFirst);
+
     const mergedChildren = [...listState.children];
     let foldedOnly = false;
-    if (isParagraphState(pastedFirst)) {
+    if (canFold) {
         anchorPara.text = head + pastedFirst.text;
         currentItem.children = [...currentItem.children, ...pastedItems[0].children.slice(1)];
         mergedChildren.push(...pastedItems.slice(1));
@@ -401,8 +415,10 @@ function applyLiteralPaste(
         return;
     }
 
+    // A table cell holds a single visual line: trim and fold newlines to
+    // `<br/>` (muyajs trims pasted cell text on both the framed and normal path).
     if (anchorBlock.blockName === 'table.cell.content')
-        markdown = markdown.replace(/\n/g, '<br/>');
+        markdown = markdown.trim().replace(/\n/g, '<br/>');
 
     anchorBlock.text
         = content.substring(0, start.offset)
@@ -429,33 +445,28 @@ function applyLiteralPaste(
     }
 }
 
-// A8: under Paste as Plain Text, block-level HTML is inserted as literal text
-// (muyajs `pasteAsPlainText` copyAsHtml branch) rather than a live html-block —
-// the markup stays visible as source. The first line folds into the anchor; any
-// remaining lines become their own paragraphs, so no block keeps a raw newline.
+// A8: under Paste as Plain Text, block-level HTML follows muyajs's
+// `pasteAsPlainText` copyAsHtml branch — its first line folds into the anchor as
+// literal text (the open tag stays visible at the seam), and any remaining lines
+// become a single live html-block below, matching muyajs's
+// `createBlockP(lines.slice(1).join('\n')) + insertHtmlBlock`.
 function applyPlainTextBlockHtml(clipboard: Clipboard, ctx: IPasteContext, text: string): void {
     const { anchorBlock, start, end, content } = ctx;
     const head = content.substring(0, start.offset);
     const tail = content.substring(end.offset);
     const lines = text.trim().split('\n');
 
-    if (lines.length === 1) {
-        anchorBlock.text = head + lines[0] + tail;
-        anchorBlock.update();
-        const offset = head.length + lines[0].length;
-        anchorBlock.setCursor(offset, offset, true);
-
-        return;
-    }
-
-    anchorBlock.text = head + lines[0];
+    anchorBlock.text = head + lines[0] + tail;
     anchorBlock.update();
+    const offset = head.length + lines[0].length;
+    anchorBlock.setCursor(offset, offset, true);
 
-    const rest = lines.slice(1).map(line => ({ name: 'paragraph' as const, text: line }));
-    const lastLine = rest[rest.length - 1];
-    lastLine.text += tail;
-    const last = insertStatesAfter(clipboard.muya, ctx.wrapperBlock, rest);
-    seatCursorAtSeam(last, lastLine.text.length - tail.length);
+    if (lines.length === 1)
+        return;
+
+    const htmlState = { name: 'html-block', text: lines.slice(1).join('\n') };
+    const newBlock = ScrollPage.loadBlock(htmlState.name).create(clipboard.muya, htmlState);
+    ctx.wrapperBlock?.parent?.insertAfter(newBlock, ctx.wrapperBlock);
 }
 
 // Block-level HTML (`<ul>`/`<ol>`/`<pre>`/`<blockquote>` … — tags in
@@ -475,12 +486,8 @@ function applyHtmlBlockPaste(
     const newBlock = ScrollPage.loadBlock(state.name).create(muya, state);
     wrapperBlock?.parent?.insertAfter(newBlock, wrapperBlock);
 
-    // Drop the empty paragraph the html-block replaced.
-    if (originWrapperBlock?.blockName === 'paragraph') {
-        const originState = originWrapperBlock.getState();
-        if (isParagraphState(originState) && originState.text === '')
-            originWrapperBlock.remove();
-    }
+    // Drop the empty wrapper the html-block replaced.
+    removeEmptyOriginWrapper(originWrapperBlock);
 
     const offset = state.text.length;
     newBlock.lastContentInDescendant().setCursor(offset, offset, true);
@@ -522,8 +529,11 @@ async function applyPaste(clipboard: Clipboard, data: IPasteData): Promise<void>
     if (!anchorBlock)
         return;
 
-    const { text, imageFile, pasteType } = data;
+    const { imageFile, pasteType } = data;
     let { html } = data;
+    // Normalize Windows CRLF / lone CR to LF so every downstream `split('\n')`
+    // and offset calculation sees one newline convention (muyajs strips \r).
+    const text = data.text.replace(/\r\n?/g, '\n');
 
     if (!isSelectionInSameBlock) {
         clipboard.cutHandler();
