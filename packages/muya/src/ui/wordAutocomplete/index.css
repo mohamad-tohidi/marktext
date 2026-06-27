@@ -1,0 +1,23 @@
+/**
+ * Ghost / shadow suggestion text injected inline by WordAutocomplete.
+ * Appears right after the cursor; accepting with Tab replaces it with real text.
+ */
+.mu-autocomplete-ghost {
+    /* Visually distinct but unobtrusive */
+    color: var(--editor-color-40, rgba(128, 128, 128, 0.55));
+    font-style: italic;
+    pointer-events: none;        /* Must not capture mouse events */
+    user-select: none;           /* Must not be selectable */
+    -webkit-user-select: none;
+
+    /* Inline so it flows naturally after the caret */
+    display: inline;
+
+    /* Subtle fade-in */
+    animation: ghost-fade-in 120ms ease forwards;
+}
+
+@keyframes ghost-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}

@@ -28,6 +28,7 @@ export { default as TableChessboard } from './ui/tableChessboard';
 export { TableColumnToolbar } from './ui/tableColumnToolbar';
 export { TableDragBar } from './ui/tableDragBar';
 export { TableRowColumMenu } from './ui/tableRowColumMenu';
+export { WordAutocomplete } from './ui/wordAutocomplete';
 export type { IImageInfo } from './utils/image';
 export { getImageInfo } from './utils/image';
 export { escapeHTML, sanitize, unescapeHTML, wordCount } from './utils/index';
