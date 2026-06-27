@@ -175,7 +175,7 @@ export const usePreferencesStore = defineStore('preferences', {
     autoNormalizeLineEndings: false,
 
     trimTrailingNewline: 2,
-    textDirection: 'ltr',
+    textDirection: 'rtl', // Default RTL for Persian users
     hideQuickInsertHint: false,
     imageInsertAction: 'folder',
     imagePreferRelativeDirectory: false,
