@@ -44,6 +44,12 @@ export interface IMuyaOptions {
     json?: TState[];
     markdown?: string;
     /**
+     * Pre-loaded word list used by the WordAutocomplete plugin.
+     * Provide a flat, deduplicated string array.
+     * Update at runtime by calling `muya.getPlugin('wordAutocomplete').setDictionary(words)`.
+     */
+    suggestionDictionary?: string[];
+    /**
      * Resolve the OS clipboard to a local file path on paste.
      *
      * When the user pastes and the system clipboard holds a file (for
