@@ -1,7 +1,5 @@
 <template>
   <div class="editor-container">
-    <side-bar v-if="init" />
-
     <div class="editor-middle">
       <title-bar
         :project="projectTree"
@@ -34,6 +32,8 @@
       <rename />
       <import-modal />
     </div>
+
+    <side-bar v-if="init" />
   </div>
 </template>
 
@@ -222,7 +222,7 @@ onMounted(async () => {
 .editor-placeholder,
 .editor-container {
   display: flex;
-  flex-direction: row;
+  flex-direction: row-reverse; /* Sidebar on the right for RTL/Persian layout */
   position: absolute;
   width: 100vw;
   height: 100vh;
