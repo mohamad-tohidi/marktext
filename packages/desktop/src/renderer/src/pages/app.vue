@@ -83,15 +83,9 @@ const { currentFile } = storeToRefs(editorStore)
 const pathname = computed(() => currentFile.value?.pathname)
 const filename = computed(() => currentFile.value?.filename)
 const isSaved = computed(() => currentFile.value?.isSaved)
-// `markdown` is read by `<editor-with-tabs>` whose prop is `required: true`.
-// In template space we render that subtree only when `hasCurrentFile` is set,
-// but vue-tsc can't see through the v-if guard — coalesce to '' so the prop
-// type is `string`. The `<editor-with-tabs>` mount is still gated.
 const markdown = computed<string>(() => currentFile.value?.markdown ?? '')
 const cursor = computed(() => currentFile.value?.cursor)
 const wordCount = computed(() => currentFile.value?.wordCount)
-// `muyaIndexCursor` is loosely typed as `unknown` on the editor store; the
-// downstream prop expects `Object | undefined`. Cast at the boundary.
 const muyaIndexCursor = computed<Record<string, unknown> | undefined>(
   () => currentFile.value?.muyaIndexCursor as Record<string, unknown> | undefined
 )
@@ -143,10 +137,7 @@ const setupDragDropHandler = (): void => {
         }
         e.dataTransfer.dropEffect = 'copy'
       } else if (e.dataTransfer.types.indexOf('text/uri-list') >= 0) {
-        // A web-link / web-image drag (e.g. an <img> dragged from a browser).
-        // The muya editor's own dragover/drop handlers accept these and insert
-        // an image block, so leave the drop enabled — forcing dropEffect='none'
-        // here would clobber the editor's 'copy' and suppress the drop event.
+        // A web-link / web-image drag
       } else {
         e.stopPropagation()
         e.dataTransfer.dropEffect = 'none'
@@ -155,9 +146,14 @@ const setupDragDropHandler = (): void => {
     false
   )
 }
+
 onMounted(async () => {
   if (window.marktext?.initialState) {
-    preferencesStore.SET_USER_PREFERENCE(window.marktext.initialState)
+    const state = { ...window.marktext.initialState }
+    // Always enforce RTL and save it so the UI reflects the fork's intent.
+    // Users can still change it via Preferences → Editor → Text Direction.
+    state.textDirection = 'rtl'
+    preferencesStore.SET_USER_PREFERENCE(state)
   }
 
   mainStore.LISTEN_WIN_STATUS()
@@ -203,9 +199,6 @@ onMounted(async () => {
   setupDragDropHandler()
 
   nextTick(() => {
-    // `initialState` from bootstrap carries nullable URL params (string|null);
-    // `addStyles` requires non-null `theme` / `codeFontFamily` strings.
-    // Coalesce against DEFAULT_STYLE for every nullable field.
     const init = window.marktext?.initialState
     const style: AddStylesOptions = {
       theme: init?.theme ?? DEFAULT_STYLE.theme,
@@ -219,10 +212,20 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.editor-placeholder,
 .editor-container {
   display: flex;
-  flex-direction: row-reverse; /* Sidebar on the right for RTL/Persian layout */
+  flex-direction: row-reverse; /* sidebar on the right */
+  position: absolute;
+  width: 100vw;
+  height: 100vh;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+.editor-placeholder {
+  display: flex;
+  flex-direction: row-reverse;
   position: absolute;
   width: 100vw;
   height: 100vh;
