@@ -5,6 +5,24 @@
     class="side-bar"
     :style="[!rightColumn ? { 'min-width': '45px' } : {}, { width: `${finalSideBarWidth}px` }]"
   >
+    <div
+      v-show="rightColumn"
+      ref="dragBar"
+      class="drag-bar"
+    />
+    <div
+      v-show="rightColumn"
+      class="right-column"
+    >
+      <tree
+        v-if="rightColumn === 'files'"
+        :project-tree="projectTree"
+        :opened-files="openedFiles"
+        :tabs="tabs"
+      />
+      <side-bar-search v-else-if="rightColumn === 'search'" />
+      <toc v-else-if="rightColumn === 'toc'" />
+    </div>
     <div class="left-column">
       <ul>
         <li
@@ -26,24 +44,6 @@
         </li>
       </ul>
     </div>
-    <div
-      v-show="rightColumn"
-      class="right-column"
-    >
-      <tree
-        v-if="rightColumn === 'files'"
-        :project-tree="projectTree"
-        :opened-files="openedFiles"
-        :tabs="tabs"
-      />
-      <side-bar-search v-else-if="rightColumn === 'search'" />
-      <toc v-else-if="rightColumn === 'toc'" />
-    </div>
-    <div
-      v-show="rightColumn"
-      ref="dragBar"
-      class="drag-bar"
-    />
   </div>
 </template>
 
@@ -97,8 +97,10 @@ onMounted(() => {
       layoutStore.CHANGE_SIDE_BAR_WIDTH(currentSideBarWidth < 220 ? 220 : currentSideBarWidth)
     }
 
+    // Sidebar is on the RIGHT: dragging left (negative offset) grows it,
+    // dragging right (positive offset) shrinks it — so invert the offset.
     const mouseMoveHandler = (event: MouseEvent): void => {
-      const offset = event.clientX - startX
+      const offset = startX - event.clientX
       currentSideBarWidth = startWidth + offset
       sideBarViewWidth.value = currentSideBarWidth
     }
@@ -116,9 +118,6 @@ onMounted(() => {
 
 const handleLeftIconClick = (name: string): void => {
   if (rightColumn.value === name) {
-    // Capture the expanded width BEFORE collapsing: once rightColumn is '',
-    // finalSideBarWidth evaluates to the 45px icon strip and would overwrite
-    // the user's real width with the clamped 220px minimum (#2421).
     const widthToPersist = finalSideBarWidth.value
     layoutStore.SET_LAYOUT({ rightColumn: '' })
     layoutStore.CHANGE_SIDE_BAR_WIDTH(widthToPersist)
@@ -142,6 +141,7 @@ const handleLeftBottomClick = (name: string): void => {
 <style scoped>
 .side-bar {
   display: flex;
+  flex-direction: row-reverse; /* icon strip on the right, content panel on the left */
   flex-shrink: 0;
   flex-grow: 0;
   width: 280px;
@@ -151,7 +151,7 @@ const handleLeftBottomClick = (name: string): void => {
   color: var(--sideBarColor);
   user-select: none;
   background: var(--sideBarBgColor);
-  border-right: 1px solid var(--itemBgColor);
+  border-left: 1px solid var(--itemBgColor); /* was border-right */
 }
 
 .side-bar .left-column svg {
@@ -216,7 +216,7 @@ const handleLeftBottomClick = (name: string): void => {
 .drag-bar {
   position: absolute;
   top: 0;
-  right: 0;
+  left: 0; /* was right: 0 — drag handle is now on the left edge of the sidebar */
   bottom: 0;
   height: 100%;
   width: 3px;
@@ -224,6 +224,6 @@ const handleLeftBottomClick = (name: string): void => {
 }
 
 .drag-bar:hover {
-  border-right: 2px solid var(--iconColor);
+  border-left: 2px solid var(--iconColor); /* was border-right */
 }
 </style>
